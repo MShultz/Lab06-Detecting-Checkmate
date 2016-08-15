@@ -43,10 +43,13 @@ public class Translator {
 		if (!interactionMode) {
 			translateFile();
 		}
-		writer.writeToFile("----------------------------------");
-		writer.writeToFile("Process: Interactive Mode enabled.");
-		writer.writeToFile("----------------------------------");
-		interactionMode();
+		if (!board.isCheckmate() && !board.isInvalidCheckMove() && !board.isStalemate()) {
+			writer.writeToFile("----------------------------------");
+			writer.writeToFile("Process: Interactive Mode enabled.");
+			writer.writeToFile("----------------------------------");
+			interactionMode();
+		}
+		endGame();
 		shutdown();
 	}
 
@@ -58,53 +61,60 @@ public class Translator {
 		board.writeBoard();
 		board.printBoardToConsole();
 		int count = 1;
-		do {
+		boolean isWhite = true;
+		while (!quit && board.isPlayable() && !board.isStalemate() && !board.isCheckmate()) {
 			int piece;
 			boolean pieceChosen;
-			boolean isWhite = (count % 2 != 0);
-			ui.inform(isWhite);
+			isWhite = (count % 2 != 0);
+			
 			ArrayList<Piece> pieces = board.getAllPossiblePieces(isWhite);
-
-			do {
-				pieceChosen = true;
-				piece = ui.determinePiece(pieces);
-				if (piece == 0) {
-					quit = true;
-				} else {
-					Piece current = pieces.get(piece - 1);
-					ArrayList<Position> possibleMoves = current.getMovement(board.getBoard(),
-							(current.getType() == PieceType.PAWN ? false : true));
-					possibleMoves = board.getNonCheckMovements(possibleMoves, current,
-							(King) board.getTeamKing(current.isWhite(), board.getBoard()));
-					if (current.getType() == PieceType.KING || current.getType() == PieceType.ROOK) {
-						if (board.isValidCastle("O-O-O", isWhite))
-							possibleMoves.add(new Position(-1, -1)); // Queen
-																		// Side
-						if (board.isValidCastle("O-O", isWhite))
-							possibleMoves.add(new Position(8, 8)); // King Side
-					}
-					board.printBoardToConsole();
-					int move = ui.determineMove(possibleMoves);
-					if (move == 0) {
+			King currentPlayerKing = (King) board.getTeamKing(isWhite, board.getBoard());
+			if (pieces.size() == 0 && !currentPlayerKing.isCheck()) {
+				board.setStalemate(true);
+			} else if (pieces.size() == 0 && currentPlayerKing.isCheck()) {
+				board.setCheckmate(true);
+			}
+			
+			if (!board.isStalemate() && !board.isCheckmate()) {
+				ui.inform(isWhite);
+				do {
+					pieceChosen = true;
+					piece = ui.determinePiece(pieces);
+					if (piece == 0) {
 						quit = true;
-					} else if (move == 1) {
-						pieceChosen = false;
 					} else {
-						String movement = getCompleteMovement(pieces.get(piece - 1), possibleMoves.get(move - 2));
-						if (movement.contains("O")) {
-							board.castle(isWhite, movement);
-							writer.writeToFile(format.formatCastle(movement, isWhite));
-						} else
-							processMovement(movement, isWhite);
+						Piece current = pieces.get(piece - 1);
+						ArrayList<Position> possibleMoves = current.getMovement(board.getBoard(),
+								(current.getType() == PieceType.PAWN ? false : true));
+						possibleMoves = board.getNonCheckMovements(possibleMoves, current,
+								(King) board.getTeamKing(current.isWhite(), board.getBoard()));
+						if (current.getType() == PieceType.KING || current.getType() == PieceType.ROOK) {
+							if (board.isValidCastle("O-O-O", isWhite))
+								possibleMoves.add(new Position(-1, -1));
+							if (board.isValidCastle("O-O", isWhite))
+								possibleMoves.add(new Position(8, 8));
+						}
+						board.printBoardToConsole();
+						int move = ui.determineMove(possibleMoves);
+						if (move == 0) {
+							quit = true;
+						} else if (move == 1) {
+							pieceChosen = false;
+						} else {
+							String movement = getCompleteMovement(pieces.get(piece - 1), possibleMoves.get(move - 2));
+							if (movement.contains("O")) {
+								board.castle(isWhite, movement);
+								writer.writeToFile(format.formatCastle(movement, isWhite));
+							} else
+								processMovement(movement, isWhite);
+						}
 					}
-				}
-			} while (!pieceChosen);
+				} while (!pieceChosen);
+			}
 			board.setPostMoveChecks();
 			++count;
 			board.printBoardToConsole();
-		} while (!quit && board.isPlayable());
-
-		board.writeBoard();
+		}
 	}
 
 	private void setUpBoard() {
@@ -123,7 +133,7 @@ public class Translator {
 
 	private void translateFile() {
 		try {
-			while (file.ready()) {
+			while (file.ready() && !board.isCheckmate() && !board.isInvalidCheckMove()) {
 				boolean wasMove = false;
 				String currentLine = getCurrentLine().trim();
 				if (finder.containsComment(currentLine)) {
@@ -132,12 +142,14 @@ public class Translator {
 				if (currentLine.trim().length() > 0) {
 					if (finder.isPlacement(currentLine)) {
 						processPlacement(currentLine);
-					} else if (finder.isMovement(currentLine)) {
+					} else if (finder.isMovement(currentLine, board, handler)) {
 						ArrayList<String> movements = finder.getMovementDirectives(currentLine);
-						processMovement(movements.get(0), true);
-						processMovement(movements.get(1), false);
-						wasMove= true;
-					} else if (finder.containsCastle(currentLine)) {
+						if (!board.isCheckmate() && !board.isInvalidCheckMove())
+							processMovement(movements.get(0), true);
+						if (movements.size() > 1 && !board.isCheckmate() && !board.isInvalidCheckMove())
+							processMovement(movements.get(1), false);
+						wasMove = true;
+					} else if (finder.containsCastle(currentLine) && !board.isCheckmate()) {
 						processCastling(currentLine);
 						wasMove = true;
 
@@ -145,7 +157,7 @@ public class Translator {
 						writer.writeToFile(format.getIncorrect(currentLine));
 					}
 				}
-				if(wasMove){
+				if (wasMove) {
 					board.setPostMoveChecks();
 				}
 			}
@@ -271,7 +283,7 @@ public class Translator {
 		Position pos1 = new Position(handler.getInitialRank(movement, true), handler.getInitialFile(movement, true));
 		Position pos2 = new Position(handler.getSecondaryRank(movement), handler.getSecondaryFile(movement));
 		String s = format.formatInvalidMovement(board, pos1, pos2, isWhite, movement,
-				handler.getPieceChar(movement, isWhite));
+				handler.getPieceChar(movement));
 		writer.writeToFile(s);
 	}
 
@@ -290,8 +302,17 @@ public class Translator {
 			movement += Character.toLowerCase(ui.getFileLetter(position.getFile()));
 			movement += (position.getRank() + 1);
 			piece.setCurrentPosition(position);
-			movement += (board.isCheck(getBoardWithMovement(piecePosition, position), piece,
-					(King) board.getTeamKing(!piece.isWhite(), currentBoard)) ? "+" : "");
+			if (board.isCheck(getBoardWithMovement(piecePosition, position), piece,
+					(King) board.getTeamKing(!piece.isWhite(), currentBoard))) {
+				Piece[][] checkBoard = board.copyArray(currentBoard);
+				checkBoard[piece.getCurrentPosition().getRank()][piece.getCurrentPosition().getFile()] = null;
+				checkBoard[position.getRank()][position.getFile()] = piece;
+				if (board.isCheckmate(!piece.isWhite(), checkBoard, false)) {
+					movement += "#";
+				} else {
+					movement += "+";
+				}
+			}
 			piece.setCurrentPosition(piecePosition);
 		}
 		return movement;
@@ -303,6 +324,15 @@ public class Translator {
 		newBoard[pos1.getRank()][pos1.getFile()] = null;
 		newBoard[pos2.getRank()][pos2.getFile()] = p;
 		return newBoard;
+	}
+	
+	private void endGame(){
+		String gameEnding = (board.isStalemate() ? ui.informOfStalemate()
+				: board.isCheckmate() ? ui.informOfCheckmate(board.isWinner()) : board.isInvalidCheckMove()? ui.informOfInvalid() :"The game has been chosen to end.");
+		writer.writeToFile(gameEnding);
+		System.out.println(gameEnding);
+		if(!board.isCheckmate())
+		board.writeBoard();
 	}
 
 }

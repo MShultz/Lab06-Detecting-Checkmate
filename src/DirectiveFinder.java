@@ -36,9 +36,22 @@ public class DirectiveFinder {
 		return placementMatcher.find();
 	}
 
-	public boolean isMovement(String currentLine) {
+	public boolean isMovement(String currentLine, Board board, DirectiveHandler handler) {
 		Matcher movementMatcher = movementPattern.matcher(currentLine);
-		return movementMatcher.find();
+		Matcher oneMove = onlyOne.matcher(currentLine);
+		return movementMatcher.find() || (oneMove.find()
+				&& (currentLine.contains("#") || isValidSingleMove(oneMove.group("Movement1"), board, handler))
+				&& !currentLine.contains("O"));
+	}
+
+	private boolean isValidSingleMove(String movement, Board board, DirectiveHandler handler) {
+		Position position1 = new Position(handler.getInitialRank(movement, true),
+				handler.getInitialFile(movement, true));
+		Position position2 = new Position(handler.getSecondaryRank(movement), handler.getSecondaryFile(movement));
+		char piece = handler.getPieceChar(movement);
+		boolean valid = board.isValid(position1, position2, true, movement, piece);
+		board.setShouldBeStaleMateDirective(valid);
+		return valid;
 	}
 
 	public String getPlacementDirective(String currentLine) {
@@ -49,10 +62,14 @@ public class DirectiveFinder {
 
 	public ArrayList<String> getMovementDirectives(String currentLine) {
 		Matcher movementMatcher = movementPattern.matcher(currentLine);
-		movementMatcher.find();
+		Matcher oneMovementMatcher = onlyOne.matcher(currentLine);
 		ArrayList<String> movementDirectives = new ArrayList<String>();
-		movementDirectives.add(movementMatcher.group("Movement1"));
-		movementDirectives.add(movementMatcher.group("Movement2"));
+		if (movementMatcher.find()) {
+			movementDirectives.add(movementMatcher.group("Movement1"));
+			movementDirectives.add(movementMatcher.group("Movement2"));
+		} else if (oneMovementMatcher.find()) {
+			movementDirectives.add(oneMovementMatcher.group("Movement1"));
+		}
 		return movementDirectives;
 	}
 
@@ -82,18 +99,18 @@ public class DirectiveFinder {
 		if (single.group("Castle1") == null) {
 			movement.add(single.group("Single1"));
 			movement.add(single.group("Castle2"));
-		}else if (single.group("Castle2") == null) {
+		} else if (single.group("Castle2") == null) {
 			movement.add(single.group("Castle1"));
 			movement.add(single.group("Single1"));
-		}else if (single.group("Single1") == null) {
+		} else if (single.group("Single1") == null) {
 			movement.add(single.group("Castle1"));
 			movement.add(single.group("Castle2"));
 		}
 		return movement;
 	}
-	public boolean isCastle(String directive){
+
+	public boolean isCastle(String directive) {
 		return directive.contains("O");
 	}
 
-	
 }

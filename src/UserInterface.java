@@ -137,5 +137,16 @@ public class UserInterface {
 		} while (!correctMove);
 		return move;
 	}
+	
+	public String informOfStalemate(){
+		return "The game was a draw; there is no winner";
+	}
+	
+	public String informOfCheckmate(boolean isWhite){
+		return "Checkmate! " + (isWhite? "White" : "Black") + " wins!";
+	}
+	public String informOfInvalid(){
+		return "An invalid move was made during translation mode, forcing a checkmate.";
+	}
 
 }

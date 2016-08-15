@@ -114,8 +114,14 @@ public class OutputFormatter {
 			}
 		} else if (!board.isOccupied(position2) && board.isCapture(placement)) {
 			invalid += "You are attempting to capture a square that doesn't have a player on it.";
+		} else if (board.isInvalidCheckMove()) {
+			invalid += "This move did not take your king out of check.";
 		} else if (placement.contains("+")) {
 			invalid += "This move did not contain check as the directive stated.";
+		} else if (placement.contains("#")) {
+			invalid += "This move was not checkmate as the directive stated";
+		} else if (board.isShouldBeStaleMateDirective()) {
+			invalid += "A single line with a valid move signified a possible stalemate; there was none.";
 		} else {
 			invalid += "The " + board.getPiece(position1).getType().toString().toLowerCase()
 					+ " cannot make that movement.";

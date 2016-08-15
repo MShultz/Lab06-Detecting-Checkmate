@@ -91,7 +91,7 @@ public class DirectiveHandler {
 		return directive.contains("l");
 	}
 
-	public char getPieceChar(String directive, boolean isWhiteTurn) {
+	public char getPieceChar(String directive) {
 		char pieceChar;
 		Matcher match = piece.matcher(directive);
 		if (match.find()) {
