@@ -1,7 +1,7 @@
 import java.util.ArrayList;
 import java.util.Iterator;
 
-//Handle taking the king out of check and trying to move piece and stuff
+
 public class Board {
 	private final static int BOARD_SIZE = 8;
 	private Piece[][] board;
@@ -476,9 +476,16 @@ public class Board {
 		King blackKing = (King) getTeamKing(false, board);
 
 		whiteKing.setCheck(isCheck(whiteKing));
+		int whiteKingNum = whiteKing.getNumChecks();
 		whiteKing.setNumChecks(getNumChecks(whiteKing, getTeam(false, board), board));
 		blackKing.setCheck(isCheck(blackKing));
+		int blackKingNum = blackKing.getNumChecks();
 		blackKing.setNumChecks(getNumChecks(blackKing, getTeam(true, board), board));
+		
+		if(whiteKingNum < whiteKing.getNumChecks())
+			System.out.println("White King is in check!");
+		if(blackKingNum < blackKing.getNumChecks())
+			System.out.println("Black King is in check!");
 
 	}
 
